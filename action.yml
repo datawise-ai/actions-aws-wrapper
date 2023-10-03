@@ -1,0 +1,107 @@
+name: "datawise-aws-wrapper"
+description: "datawise AWS wrapper"
+inputs:
+  PROJECT:
+    required: true
+  APP:
+    required: true
+  SERVICE:
+    required: true
+  INSTANCE:
+    required: true
+  VERSION:
+    required: true
+  AWS_ACCESS:
+    required: true
+  AWS_SECRET:
+    required: true
+  AWS_ZONE:
+    required: false
+    default:  "us-east-1"
+  SECRETSJSON_2_HELMFILE:
+    required: false
+    default: "false"
+  SECRETSJSON_2_GITENV:
+    required: false
+    default: "false"
+  SECRETSJSON_2_FILE:
+    required: false
+    default: "false"
+outputs:
+  secrets:
+    description: "secrets 2 json"
+    value: "${{ steps.set_outputs.outputs.secretsjson_2_var }}"
+runs:
+  using: "composite"
+  steps:
+
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: set MASK
+      shell: bash
+      run: |
+        echo MASK="${{ inputs.PROJECT }}_${{ inputs.APP }}_${{ inputs.SERVICE }}_${{ inputs.INSTANCE }}_${{ inputs.VERSION }}" >> $GITHUB_ENV
+        echo $MASK
+        echo CAPITALIZED="`echo ${{ inputs.PROJECT }}_${{ inputs.APP }}_${{ inputs.SERVICE }}_${{ inputs.INSTANCE }}_${{ inputs.VERSION }} | tr a-z A-Z`" >> $GITHUB_ENV
+        echo $CAPITALIZED
+
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ inputs.AWS_ACCESS }}
+        aws-secret-access-key: ${{ inputs.AWS_SECRET }}
+        aws-region: ${{ inputs.AWS_ZONE }}
+
+
+    - name: Parse the AWS secrets and create ENV variables
+      uses: aws-actions/aws-secretsmanager-get-secrets@v1
+      with:
+        secret-ids:
+          ${{ inputs.PROJECT }}/${{ inputs.APP }}/${{ inputs.SERVICE }}/${{ inputs.INSTANCE }}/${{ inputs.VERSION }}
+        parse-json-secrets: true
+
+
+
+    - name: set secrets from wrapped env variables  to helm file
+      shell: bash
+      run: |
+         echo "environment:"
+         set | grep -v -e MASK -e "SECRETS_LIST_CLEAN_UP" -e "_=" | grep -iF "${MASK}" | awk -F"\_" -vOFS='' '{$1=$2=$3=$4=$5=""; print $0}'  |  awk -F"\=" -vOFS='' '{ print "\t"$1 ": \""$2"\""}'   | tee ${{ inputs.SECRETSJSON_2_HELMFILE }}
+      if: ${{ inputs.SECRETSJSON_2_HELMFILE != 'false' }}
+
+
+    - name: set secrets from wrapped env variables  to gitenv file
+      shell: bash
+      run: |
+         set | grep -v -e MASK -e "SECRETS_LIST_CLEAN_UP" -e "_=" | grep -iF "${MASK}" | awk -F"\_" -vOFS='' '{$1=$2=$3=$4=$5=""; print "echo "$0" >>$GITHUB_ENV  "}'  | tee ${{ inputs.SECRETSJSON_2_GITENV }}
+      if: ${{ inputs.SECRETSJSON_2_GITENV != 'false' }}
+
+
+
+    - name: from aws secrets to ENV VARIABLE with JSON FORMAT (plain text)
+      uses: aws-actions/aws-secretsmanager-get-secrets@v1
+      with:
+        secret-ids:
+          ${{ inputs.PROJECT }}/${{ inputs.APP }}/${{ inputs.SERVICE }}/${{ inputs.INSTANCE }}/${{ inputs.VERSION }}
+#          echo " secretsjson_2_var=${PROJECT}_${APP}_${SERVICE}_${INSTANCE}_${VERSION}  "  >> $GITHUB_OUTPUT
+        parse-json-secrets: false
+
+
+    - name: set JSON secrets from env to file
+      shell: bash
+      run: |
+         echo ${{ env.CAPITALIZED }}
+         echo ***JSON-START***
+         echo ${${{ env.CAPITALIZED }}} | tee ${{ inputs.SECRETSJSON_2_FILE }}
+         echo ***JSON-END***
+#         echo ${${{ inputs.PROJECT }}_${{ inputs.APP }}_${{ inputs.SERVICE }}_${{ inputs.INSTANCE }}_${{ inputs.VERSION }}} | tee ${{ inputs.SECRETSJSON_2_FILE }}
+      if: ${{ inputs.SECRETSJSON_2_FILE != 'false' }}
+
+
+
+    - name: print all variables in aws wrapper action
+      shell: bash
+      run: |
+        set -x
