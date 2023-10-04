@@ -85,7 +85,6 @@ runs:
       with:
         secret-ids:
           ${{ inputs.PROJECT }}/${{ inputs.APP }}/${{ inputs.SERVICE }}/${{ inputs.INSTANCE }}/${{ inputs.VERSION }}
-#          echo " secretsjson_2_var=${PROJECT}_${APP}_${SERVICE}_${INSTANCE}_${VERSION}  "  >> $GITHUB_OUTPUT
         parse-json-secrets: false
 
 
@@ -96,7 +95,6 @@ runs:
          echo ***JSON-START***
          echo ${${{ env.CAPITALIZED }}} | tee ${{ inputs.SECRETSJSON_2_FILE }}
          echo ***JSON-END***
-#         echo ${${{ inputs.PROJECT }}_${{ inputs.APP }}_${{ inputs.SERVICE }}_${{ inputs.INSTANCE }}_${{ inputs.VERSION }}} | tee ${{ inputs.SECRETSJSON_2_FILE }}
       if: ${{ inputs.SECRETSJSON_2_FILE != 'false' }}
 
 
@@ -104,4 +102,5 @@ runs:
     - name: print all variables in aws wrapper action
       shell: bash
       run: |
-        set -x
+        set
+        
